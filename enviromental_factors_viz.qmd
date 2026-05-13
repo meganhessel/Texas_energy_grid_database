@@ -1,0 +1,225 @@
+---
+title: "enviromental_factors_viz"
+format: html
+---
+```{r}
+# For database queries 
+library(tidyverse)
+library(DBI)
+library(dbplyr)
+library(duckdb)
+
+# For plots 
+library(tidyverse)
+library(dplyr)
+library(sf)
+```
+
+
+First, need to connect to the database. 
+```{r}
+
+# Connection
+conn <- DBI::dbConnect(duckdb::duckdb(),
+                       dbdir = "TX_energy_grid.db")
+
+# Tables 
+DBI::dbListTables(conn)
+
+```
+
+
+## **QUESTION 1:** ENVIR ALIGNMENT
+
+**Do Texas communities leverage local environmental resources in their energy generation mix?**
+
+---
+
+### Q1.A: Is solar energy adoption associated with solar irradiance levels across Texas communities?
+
+Query for solar energy and sunshine patterns
+```{r}
+# SQL Query 
+solar_energy_texas <- DBI::dbGetQuery(
+  conn,
+  "SELECT * FROM generator_texas 
+    JOIN plant_texas USING (plant_code)
+    JOIN sunshine_texas USING (countyfp)
+    WHERE fuel_category LIKE 'Solar'"
+) 
+
+```
+
+Create a line plot for sunshine and solar energy 
+```{r}
+solar_energy_subset <- solar_energy_texas %>% 
+  select(nameplate_capacity_mw, ghi)
+
+# Plot
+ggplot(solar_energy_subset) + 
+  geom_point(aes(y = nameplate_capacity_mw, 
+                 x = ghi), 
+             alpha = 0.8, 
+             color = "#C5A100") + 
+  geom_smooth(aes(y = nameplate_capacity_mw, 
+                 x = ghi), 
+              color = "firebrick",
+              method = lm, se = FALSE) + 
+  theme_classic() + 
+  labs(x = "Global Horizontal Irradiance (GHI) (W/m²) ", 
+       y = "Solar Energy (mw)", 
+       title = "Sunshine (GHI) & Solar Energy Generation ")
+
+```
+
+
+Query for Avg solar energy (mw) per county 
+```{r}
+# SQL Query 
+solar_energy_county <- DBI::dbGetQuery(
+  conn,
+  "SELECT countyfp, AVG(nameplate_capacity_mw) AS avg_mw FROM generator_texas 
+    JOIN plant_texas USING (plant_code)
+    JOIN sunshine_texas USING (countyfp)
+    WHERE fuel_category LIKE 'Solar'
+    GROUP BY countyfp"
+)
+
+# Get sunshine dataframe and revive geoms (make spatial again)
+sunshine_texas <- tbl(conn, "sunshine_texas") %>% 
+  collect() %>% 
+  mutate(geom = st_as_sfc(geom)) %>% 
+  st_as_sf()
+
+```
+
+Create map of county sunshine and solar energy mw 
+```{r}
+# Merge 
+solar_sf <- sunshine_texas %>%  # suppose to have geometry 
+  left_join(solar_energy_county, by = "countyfp")
+
+# Make centeriod 
+solar_sf <- st_as_sf(solar_sf)
+solar_centroid <- st_centroid(solar_sf)
+
+# Plot 
+ggplot() + 
+  geom_sf(data = solar_sf,
+          mapping = aes(fill = ghi)) + 
+  geom_sf(data = filter(solar_centroid, !is.na(avg_mw)), 
+          mapping = aes(size = avg_mw), 
+          shape = 21, 
+          color = "white",
+          fill = "black",
+          alpha = 0.6) + 
+  scale_fill_distiller(palette = "YlOrRd", direction = 1, name = "Solar Irradiance (GHI)") + 
+  theme_void()
+```
+
+
+### Q1.B: Is wind energy capacity associated with wind resource availability across Texas communities?
+
+Query for wind energy and wind speed patterns
+```{r}
+# SQL Query 
+wind_energy_texas <- DBI::dbGetQuery(
+  conn,
+  "SELECT * FROM generator_texas 
+    JOIN plant_texas USING (plant_code)
+    JOIN wind_texas USING (countyfp)
+    WHERE fuel_category LIKE 'Wind'"
+)
+
+```
+
+Create a line plot for sunshine and solar energy 
+```{r}
+wind_energy_subset <- wind_energy_texas %>% 
+  select(c(wind_100m, wind_120m, nameplate_capacity_mw))
+
+ggplot(wind_energy_subset) + 
+  geom_point(aes(y = nameplate_capacity_mw, 
+                 x = wind_100m), 
+             alpha = 0.5, 
+             color = "#00A8EA") + 
+  geom_smooth(aes(y = nameplate_capacity_mw, 
+                 x = wind_100m), 
+              color = "firebrick",
+              method = lm, se = FALSE) + 
+  theme_classic() + 
+  labs(x = "Wind Speed (m/sec) at 100m", 
+       y = "Wind Energy (mw)", 
+       title = "Wind Speeds & Wind Energy Generation ")
+
+
+ggplot(wind_energy_subset) + 
+  geom_point(aes(y = nameplate_capacity_mw, 
+                 x = wind_120m), 
+             alpha = 0.5, 
+             color = "#00A8EA") + 
+  geom_smooth(aes(y = nameplate_capacity_mw, 
+                 x = wind_120m), 
+              color = "firebrick",
+              method = lm, se = FALSE) + 
+  theme_classic() + 
+  labs(x = "Wind Speed (m/sec) at 120m", 
+       y = "Wind Energy (mw)", 
+       title = "Wind Speeds & Wind Energy Generation ")
+
+```
+
+
+Query for Avg solar energy (mw) per county 
+```{r}
+# SQL Query 
+wind_energy_county <- DBI::dbGetQuery(
+  conn,
+  "SELECT countyfp, AVG(nameplate_capacity_mw) AS avg_mw FROM generator_texas 
+    JOIN plant_texas USING (plant_code)
+    JOIN wind_texas USING (countyfp)
+    WHERE fuel_category LIKE 'Wind'
+    GROUP BY countyfp;"
+)
+
+wind_texas <- tbl(conn, "wind_texas") %>% 
+  collect() %>% 
+  mutate(geom = st_as_sfc(geom)) %>% 
+  st_as_sf()
+
+```
+
+
+Create map of county wind speeds and wind energy mw 
+```{r}
+# Merge 
+wind_sf <- wind_texas %>%  # suppose to have geometry 
+  left_join(wind_energy_county, by = "countyfp")
+
+# Make centeriod 
+wind_sf <- st_as_sf(wind_sf)
+wind_centroid <- st_centroid(wind_sf)
+
+# Plot 
+ggplot() + 
+  geom_sf(data = wind_sf,
+          mapping = aes(fill = wind_120m)) + 
+  geom_sf(data = filter(wind_centroid, !is.na(avg_mw)), 
+          mapping = aes(size = avg_mw), 
+          shape = 21, 
+          color = "white",
+          fill = "black",
+          alpha = 0.6) + 
+  scale_fill_distiller(palette = "Blues", direction = -1, name = "Wind at 120m") + 
+  theme_void()
+
+```
+
+
+
+# Close databse 
+```{r}
+# CLOSE DATABASE CONNECTION  - MUST DO 
+DBI::dbDisconnect(conn, shutdown = TRUE)
+
+```

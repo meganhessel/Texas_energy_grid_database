@@ -386,7 +386,7 @@ st_write_parquet(obj = plant_TX_sf, dsn = "data/processed/plant_texas_sf.parquet
 
 ```
 
----
+------------------------------------------------------------------------
 
 Duckdb vs R's spatial stuff is incompatible.
 

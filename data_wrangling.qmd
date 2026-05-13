@@ -1,0 +1,419 @@
+---
+title: "data_wrangling"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(sf)
+library(openxlsx)
+library(janitor)
+library(tmap)
+library(terra)
+library(exactextractr)
+library(arrow)
+library(sfarrow)
+library(geoarrow)
+```
+
+## Load Data
+
+Load **Energy Data** & Filter for TEXAS
+
+```{r}
+utility_TX <- read.xlsx(here::here("data", "raw", "eia8602024", "1___Utility_Y2024.xlsx"), startRow = 2) %>% clean_names() %>% filter(state == "TX")
+
+plant_TX <- read.xlsx(here::here("data", "raw", "eia8602024", "2___Plant_Y2024.xlsx"), startRow = 2) %>% clean_names() %>% filter(state == "TX") %>% rename(cnty_name = county)
+
+wind_energy_TX <- read.xlsx(here::here("data", "raw", "eia8602024", "3_2_Wind_Y2024.xlsx"), startRow = 2) %>% clean_names() %>% filter(state == "TX") %>% rename(cnty_name = county)
+
+solar_energy_TX <- read.xlsx(here::here("data", "raw", "eia8602024", "3_3_Solar_Y2024.xlsx"), startRow = 2) %>% clean_names() %>% filter(state == "TX") %>% rename(cnty_name = county)
+
+storge_TX <- read.xlsx(here::here("data", "raw", "eia8602024", "3_4_Energy_Storage_Y2024.xlsx"), startRow = 2) %>% clean_names() %>% filter(state == "TX") %>% rename(cnty_name = county)
+
+generator_TX <- read.xlsx(here::here("data", "raw", "eia8602024", "3_1_Generator_Y2024.xlsx"), startRow = 2) %>% clean_names() %>% filter(state == "TX") %>% rename(cnty_name = county)
+
+multifuel_TX <- read.xlsx(here::here("data", "raw", "eia8602024", "3_5_Multifuel_Y2024.xlsx"), startRow = 2) %>% clean_names() %>% filter(state == "TX") %>% rename(cnty_name = county)
+
+```
+
+Load Texas **Socio-demographic**
+
+```{r}
+#st_layers(here::here("data", "raw", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
+
+# Geom 
+geom_texas <- st_read(here::here("data", "raw", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"), layer = "ACS_2019_5YR_TRACT_48_TEXAS")%>% clean_names()
+
+# Socio-demo info 
+income_texas <- st_read(here::here("data", "raw", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"), layer = "X19_INCOME")%>% clean_names()
+hispanic_texas <- st_read(here::here("data", "raw", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"), layer = "X03_HISPANIC_OR_LATINO_ORIGIN")%>% clean_names()
+#race_texas <- st_read(here::here("data", "raw", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"), layer = "X02_RACE")%>% clean_names()
+#poverty_texas <- st_read(here::here("data", "raw", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"), layer = "X17_POVERTY")%>% clean_names()
+
+# Meta data 
+metadata_socio_texas <- st_read(here::here("data", "raw", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"), layer = "TRACT_METADATA_2019")
+```
+
+Load Texas counties
+
+```{r}
+#texas_counties_boundaries <- st_read(here::here("data", "raw", "Texas_County_Boundaries"))%>% clean_names() # Not what I want 
+
+texas_counties <- st_read(here::here("data", "raw", "tl_2024_us_county"))%>% clean_names() %>% 
+  filter(statefp == '48') %>% # THIS IS WHAT I WANT - Texas
+  rename(cnty_name = name) # Rename county name colunm to `cnty_name`
+```
+
+Load Texas **environmental data**
+
+```{r}
+# GHI data 
+sunshine <- terra::rast(here::here("data", "raw", "nsrdbv3_ghi", "Annual GHI", "nsrdb3_ghi.tif"))%>% clean_names()
+
+# Wind data
+# Numbers refer to the height above ground (in meters) the wind speed measures were taken 
+wind_envir80 <- terra::rast(here::here("data", "raw", "us-wind-data", "wtk_conus_80m_mean_masked.tif"))%>% clean_names()
+wind_envir100 <- terra::rast(here::here("data", "raw", "us-wind-data", "wtk_conus_100m_mean_masked.tif"))%>% clean_names()
+wind_envir120 <- terra::rast(here::here("data", "raw", "us-wind-data", "wtk_conus_120m_mean_masked.tif"))%>% clean_names()
+wind_envir140 <- terra::rast(here::here("data", "raw", "us-wind-data", "wtk_conus_140m_mean_masked.tif"))%>% clean_names()
+
+```
+
+**The wind data**
+
+This data has wind speed measured at a different height above ground (in meters), ranging from 10 to 200m. Taller = faster winds because surface friction slows wind near the ground.
+
+10m — Surface weather, not useful for energy.
+
+80–100m — Onshore wind turbine hub height, most common for wind energy analysis.
+
+120–140m — Modern large turbines (increasingly common in West Texas).
+
+200m — Offshore or research purposes.
+
+# Clean
+
+## Socio-Economic Data
+
+Making socio-demographic data frames spatial by joining the socio-demographic data frames with `geom_texas`. Both data sets are different layers from the same ACS geodatabase and, thus, correspond to each other cleanly.
+
+```{r}
+# Make spatial with county names 
+income_texas_sf <- dplyr::left_join(geom_texas, income_texas, by = c("geoid_data"= "geoid")) 
+hispanic_texas_sf <- dplyr::left_join(geom_texas, hispanic_texas, by = c("geoid_data"= "geoid"))
+
+# Remove non spatial dfs 
+rm(list = c('income_texas', 'race_texas'))
+
+# Remove spatial dfs 
+#rm(list = c('income_texas_sf', 'race_texas_sf', 'poverty_texas_sf', 'age_sex_texas_sf'))
+```
+
+Creating an Income data frame
+
+```{r}
+income_filter <- income_texas_sf %>% 
+  # Filter for neccessary columns and rename them
+  select(c(countyfp, statefp, tractce, geoid, b19013e1)) %>% 
+  rename(avg_income = b19013e1) %>% 
+  st_drop_geometry() %>% 
+  # Join with texas_counties - which has county names and geoids 
+  left_join(texas_counties, by = "countyfp") %>% 
+  select(-c(statefp.y, geoid.y, classfp, mtfcc, csafp, cbsafp, metdivfp, funcstat, aland, awater)) %>% 
+  st_drop_geometry() %>% 
+  rename(geoid = geoid.x)
+
+# income_texas_sf %>% filter(is.na(b19013e1)) # Look at 63 income NA values 
+
+# Create new column of income bins 
+income_filter <- income_filter %>% 
+  mutate(avg_income_bin = case_when(
+    avg_income < 25000 ~ "Under 25K", 
+    avg_income < 50000 ~ "25K -50K", 
+    avg_income < 100000 ~ "50K - 100K", 
+    avg_income < 150000 ~ "100K - 150K", 
+    avg_income > 150000 ~ "150K+" 
+    ))
+
+```
+
+Creating a Race dataf rame
+
+```{r}
+race_filter <- hispanic_texas_sf %>% 
+  # Select neccessary columns and rename them 
+  select(countyfp, tractce, geoid, b03002e1, b03002e3, b03002e4, b03002e5, b03002e6, b03002e7, b03002e8, b03002e9, b03002e12) %>% 
+  rename(
+    pop_total = b03002e1,
+    white_total = b03002e3,
+    black_aa_total = b03002e4,
+    ai_an_total= b03002e5, # American Indian and Alaska Native alone
+    asian_total = b03002e6, 
+    ah_pi_total = b03002e7, # Native Hawaiian and Other Pacific Islander alone
+    other_total = b03002e8, # Some other race alone 
+    plus2_total = b03002e9,
+    hispanic_total = b03002e12) %>% 
+  # Join with texas_counties - which has county names and geoids 
+  st_drop_geometry() %>% 
+  left_join(texas_counties, by = "countyfp") %>% 
+  select(-c(geoid.y, classfp, mtfcc, csafp, cbsafp, metdivfp, funcstat, aland, awater)) %>% 
+  st_drop_geometry() %>% 
+  rename(geoid = geoid.x)
+
+
+# Chnage race to percentages of total 
+count_cols <- c("white_total", "black_aa_total", "ai_an_total", "asian_total", "ah_pi_total", "other_total", "plus2_total", "hispanic_total")
+race_filter[, count_cols] <- race_filter[, count_cols] / race_filter$pop_total
+
+```
+
+## Sunshine Data
+
+Crop/Mask to TX
+
+```{r}
+# Make CRS match 
+texas_counties_proj <- st_transform(texas_counties, crs(sunshine))
+
+# Crop and mask to TEXAS 
+sunshine_masked <- crop(sunshine, texas_counties_proj)
+sunshine_masked <- terra::mask(sunshine_masked, texas_counties_proj)
+```
+
+Turn rasters into county polygons values
+
+```{r}
+# Extract rasters into county polygons 
+texas_counties$ghi <- exact_extract(sunshine_masked, texas_counties, 'mean')
+
+# Make sunshine dataframe 
+sunshine_df <- data.frame(countyfp =texas_counties$countyfp, 
+           cnty_name = texas_counties$cnty_name,
+           namelsad = texas_counties$namelsad,
+           ghi = texas_counties$ghi 
+           #geometry = texas_counties$geometry
+           )
+
+sunshine_sf <- data.frame(countyfp =texas_counties$countyfp, 
+           cnty_name = texas_counties$cnty_name,
+           namelsad = texas_counties$namelsad,
+           ghi = texas_counties$ghi, 
+           geometry = texas_counties$geometry
+           )
+
+sunshine_sf <- st_as_sf(sunshine_sf) # needed this for a 
+
+```
+
+## Wind Data
+
+Crop and mask to Texas
+
+```{r}
+# Make CRS match 
+texas_counties_proj <- st_transform(texas_counties, crs(wind_envir80))
+
+# Crop and mask to TEXAS 
+# 80m 
+wind_envir80_masked <- crop(wind_envir80, texas_counties_proj)
+wind_envir80_masked <- terra::mask(wind_envir80_masked, texas_counties_proj)
+# 100m 
+wind_envir100_masked <- crop(wind_envir100, texas_counties_proj)
+wind_envir100_masked <- terra::mask(wind_envir100_masked, texas_counties_proj)
+# 120m 
+wind_envir120_masked <- crop(wind_envir120, texas_counties_proj)
+wind_envir120_masked <- terra::mask(wind_envir120_masked, texas_counties_proj)
+# 140m 
+wind_envir140_masked <- crop(wind_envir140, texas_counties_proj)
+wind_envir140_masked <- terra::mask(wind_envir140_masked, texas_counties_proj)
+
+```
+
+Turn rasters into county polygons values
+
+```{r}
+texas_counties$wind_80m <- exact_extract(wind_envir80_masked, texas_counties, 'mean')
+texas_counties$wind_100m <- exact_extract(wind_envir100_masked, texas_counties, 'mean')
+texas_counties$wind_120m <- exact_extract(wind_envir120_masked, texas_counties, 'mean')
+texas_counties$wind_140m <- exact_extract(wind_envir140_masked, texas_counties, 'mean')
+
+# Make sunshine dataframe 
+wind_texas <- data.frame(
+  countyfp = texas_counties$countyfp,
+  cnty_name = texas_counties$cnty_name,
+  namelsad = texas_counties$namelsad,
+  wind_80m = texas_counties$wind_80m, 
+  wind_100m = texas_counties$wind_100m, 
+  wind_120m = texas_counties$wind_120m, 
+  wind_140m = texas_counties$wind_140m 
+)
+
+# Make sunshine dataframe 
+wind_texas_sf <- data.frame(
+  countyfp = texas_counties$countyfp,
+  cnty_name = texas_counties$cnty_name,
+  namelsad = texas_counties$namelsad,
+  wind_80m = texas_counties$wind_80m, 
+  wind_100m = texas_counties$wind_100m, 
+  wind_120m = texas_counties$wind_120m, 
+  wind_140m = texas_counties$wind_140m,
+  geometry = texas_counties$geometry
+)
+
+wind_texas_sf <- st_as_sf(wind_texas_sf)
+
+```
+
+Remove environmental factors from `texas_counties`
+
+```{r}
+texas_counties <- texas_counties %>% 
+  select(-c(wind_80m, wind_100m, wind_120m, wind_140m))
+
+```
+
+## Energy Data
+
+### Plant
+
+Clean, fix NAs, and make spatial
+
+```{r}
+# Change lat and long to numeric 
+plant_TX <- plant_TX %>% 
+  mutate(
+    latitude = as.numeric(latitude), 
+    longitude = as.numeric(longitude)
+  )
+
+# Are there are any NAs? - yes 
+plant_TX %>% 
+  filter(is.na(longitude) | is.na(latitude)) 
+
+# Add lat and long to El Paso Electric Co 
+plant_TX <- plant_TX %>%
+  mutate(
+    latitude  = ifelse(is.na(latitude),  31.759269568576,     latitude),
+    longitude = ifelse(is.na(longitude), -106.48537808465731, longitude)
+  )
+
+# Make spatial 
+plant_TX_sf <- st_as_sf(plant_TX, coords = c('longitude', 'latitude'), crs = st_crs(geom_texas))
+
+st_crs(plant_TX_sf) == st_crs(geom_texas) # crs check 
+
+# JOIN - Add geoid
+plant_TX_sf <- st_join(plant_TX_sf, geom_texas)
+```
+
+### Generator
+
+**Renewables:**
+
+| Energy                  | Abbreviation            |
+|-------------------------|-------------------------|
+| Solar                   | SUN                     |
+| Wind                    | WND                     |
+| Hydroelectric           | WAT                     |
+| Geothermal              | GEO                     |
+| Biomass / Wood / Biogas | WDS, WDL, OBG, OBL, OBS |
+| Landfill Gas            | LFG                     |
+
+**Non-renewables:**
+
+| Energy          | Abbreviation       |
+|-----------------|--------------------|
+| Natural Gas     | NG                 |
+| Coal Types      | COL, BIT, SUB, LIG |
+| Oil / Petroleum | DFO, RFO, JF, KER  |
+| Nuclear         | NUC                |
+| Other Gas       | OG                 |
+
+Make a new column about fuel types
+
+```{r}
+# Add a column for fuel type 
+renewables <- c("SUN","WND","WAT","GEO","WDS","WDL","OBG","OBL","OBS","LFG")
+
+generator_TX <- generator_TX %>% 
+  mutate(fuel_category = case_when(
+           energy_source_1 %in% c("SUN") ~ "Solar",
+           energy_source_1 %in% c("WND") ~ "Wind",
+           energy_source_1 %in% c("WAT") ~ "Hydro",
+           energy_source_1 %in% c("NG","OG") ~ "Natural gas",
+           energy_source_1 %in% c("COL","BIT","SUB","LIG") ~ "Coal",
+           energy_source_1 %in% c("NUC") ~ "Nuclear",
+           energy_source_1 %in% renewables  ~ "Other renewable",
+           TRUE  ~ "Other" 
+  ))
+  
+```
+
+## Save Data Frames
+
+Non-spatial dfs
+
+```{r}
+# Socioeconomic 
+write_parquet(x = race_filter, sink = "data/processed/race_texas.parquet")
+
+write_parquet(x = income_filter, sink = "data/processed/income_texas.parquet")
+
+# enviornmental
+write_parquet(x = sunshine_df, sink = "data/processed/sunshine_texas.parquet")
+
+write_parquet(x = wind_texas, sink = "data/processed/wind_texas.parquet")
+
+# energy 
+write_parquet(x = generator_TX, sink = "data/processed/generator_texas.parquet")
+```
+
+Spatial dfs
+
+```{r}
+# environemental
+st_write_parquet(obj = sunshine_sf, dsn = "data/processed/sunshine_texas_sf.parquet", 
+                 geometry_encoding = "WKB")
+
+st_write_parquet(obj = wind_texas_sf, dsn = "data/processed/wind_texas_sf.parquet", 
+                 geometry_encoding = "WKB")
+
+# energy 
+st_write_parquet(obj = plant_TX_sf, dsn = "data/processed/plant_texas_sf.parquet", 
+                 geometry_encoding = "WKB")
+
+```
+
+---
+
+Duckdb vs R's spatial stuff is incompatible.
+
+**Problem:** `sfarrow` is writing version `0.1.0` metadata but DuckDB expects `1.0.0`.
+
+Writing geometries as WKT text column in R:
+
+```{r}
+sunshine_sf_edit <- sunshine_sf %>% 
+  mutate(geom = st_as_text(geometry)) %>% 
+  st_drop_geometry()
+
+wind_sf_edit <- wind_texas_sf %>% 
+  mutate(geom = st_as_text(geometry)) %>% 
+  st_drop_geometry()
+
+plant_sf_edit <- plant_TX_sf %>% 
+  mutate(geom = st_as_text(geometry)) %>% 
+  st_drop_geometry()
+```
+
+Saving the spatial editted dfs
+
+```{r}
+write_parquet(x = sunshine_sf_edit, sink = "data/processed/sunshine_texas_sf_v2.parquet")
+
+write_parquet(x = wind_sf_edit, sink = "data/processed/sunshine_wind_sf_v2.parquet")
+
+write_parquet(x = plant_sf_edit, sink = "data/processed/plant_texas_sf_v2.parquet")
+```

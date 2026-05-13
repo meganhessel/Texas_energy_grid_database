@@ -33,4 +33,4 @@ CREATE TABLE sunshine_texas AS
 CREATE TABLE wind_texas AS 
     SELECT * EXCLUDE (geom),
            ST_GeomFromText(geom) AS geom
-    FROM read_parquet('/Users/meganhessel/Documents/MEDS/eds213_databases/final_database_proj/Texas_energy_grid_database/data/processed/sunshine_wind_sf_v2.parquet');
+    FROM read_parquet('/Users/meganhessel/Documents/MEDS/eds213_databases/final_database_proj/Texas_energy_grid_database/data/processed/wind_texas_sf_v2.parquet');

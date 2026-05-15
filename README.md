@@ -36,7 +36,7 @@ The data is not located within this repository. The data used in the Texas energ
 
 All qmds and sql scripts are located in the repository root and labeled in project order.
 
-Cleaning and wrangling the raw data sets are accomplished in `1_data_wrangling.qmd` . Creating the database is done in the `2_initalize_database.sql` . Data visualization to answer the overarching question is within `3_environmental_factors_viz.qmd` and `4_socioEconomic_viz.qmd` . Data visualizations are saved in the `figs` folder, whereas the final infographic is in the `infographic` folder.
+Cleaning and wrangling the raw data sets are accomplished in `1_data_wrangling.qmd` . Creating the database is done in the `2_initalize_database.sql` . Data visualization to answer the overarching question is within `3_environmental_factors_viz.qmd` and `4_socioEconomic_viz.qmd` . Data visualizations are saved in the `figs` folder, whereas the final infographic is in the `infographic` folder. Details about the R package requirements are located in the `requirements.txt`.
 
 ```{r}
 ├── 1_data_wrangling.qmd
@@ -46,6 +46,7 @@ Cleaning and wrangling the raw data sets are accomplished in `1_data_wrangling.q
 ├── README.md
 ├── Texas_energy_grid_database.Rproj
 ├── database_queries.sql
+├── requirements.txt
 ├── figs
 │   ├── income_energy_plot.pdf
 │   ├── race_energy_plot.pdf

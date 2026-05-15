@@ -1,0 +1,71 @@
+Texas Energy Grid Database - Environment Requirements
+======================================================
+
+R VERSION
+---------
+R >= 4.1.0 recommended
+Quarto >= 1.3 (for rendering .qmd files)
+
+R PACKAGES
+----------
+# Data wrangling & general
+tidyverse
+dplyr
+janitor       # Cleaning 
+here          # Loading in data 
+openxlsx      # reading .xlsx files (EIA-860 data)
+
+# Spatial
+sf            # vector spatial data
+terra         # raster spatial data (GHI, wind .tif files)
+exactextractr # extracting raster values to polygons (county-level aggregation)
+tmap          # spatial visualization
+
+# Parquet / Arrow
+arrow         # reading/writing .parquet files
+sfarrow       # spatial parquet (sf <-> parquet)
+geoarrow      # geoarrow geometry encoding
+
+# Database
+DBI           # database interface
+duckdb        # DuckDB backend
+dbplyr        # dplyr interface to databases
+
+# Visualization
+scales        # axis formatting (percent labels)
+
+INSTALL ALL R PACKAGES
+----------------------
+install.packages(c(
+  "tidyverse", "dplyr", "janitor", "here", "openxlsx",
+  "sf", "terra", "exactextractr", "tmap",
+  "arrow", "sfarrow", "geoarrow",
+  "DBI", "duckdb", "dbplyr",
+  "scales"
+))
+
+DATABASE
+--------
+SQLite: TX_energy_grid.db (not tracked in git — must be generated locally)
+Run scripts in order:
+  1. 1_data_wrangling.qmd    — cleans raw data, outputs processed/ parquet files
+  2. 2_initalize_database.sql — loads parquet files into DuckDB database
+  3. 3_enviromental_factors_viz.qmd
+  4. 4_socioEconomic_viz.qmd
+
+RAW DATA (not in repo — download separately)
+---------------------------------------------
+- EIA Form 860 (2024): https://www.eia.gov/electricity/data/eia860/
+    Files used: 2___Plant_Y2024.xlsx,
+                3_1_Generator_Y2024.xlsx
+- ACS 2019 5-Year Estimates (Texas tracts .gdb):
+    https://www.census.gov/programs-surveys/acs/
+- TIGER/Line County Shapefiles (2024):
+    https://www.census.gov/cgi-bin/geo/shapefiles/index.php
+- NSRDB GHI raster (.tif):
+    https://nsrdb.nrel.gov/data-sets/us-data
+- WIND Toolkit rasters (80m, 100m, 120m, 140m .tif):
+    https://www.nrel.gov/grid/wind-toolkit.html
+
+Place raw data in: data/raw/
+Place processed data in: data/processed/

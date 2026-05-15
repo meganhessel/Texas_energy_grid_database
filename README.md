@@ -2,7 +2,7 @@
 
 *Author: Megan Hessel*
 
-The purpose of this repository is to create a database and vizualizations answering:
+The purpose of this repository is to create a database and visualizations answering:
 
 **Do Texas communities optimize their energy generation around local environmental resources, and do socioeconomic and demographic disparities influence how those resources are utilized?**
 

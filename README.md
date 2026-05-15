@@ -1,8 +1,12 @@
 # Texas Energy Grid Database
 
+*Author: Megan Hessel*
+
 The purpose of this repository is to create a database and vizualizations answering:
 
 **Do Texas communities optimize their energy generation around local environmental resources, and do socioeconomic and demographic disparities influence how those resources are utilized?**
+
+[![](infographic/tx_wind_picture.png){width="857"}](https://www.datacenterdynamics.com/en/news/equinix-buys-green-energy-in-oklahoma-and-texas/)
 
 ------------------------------------------------------------------------
 
@@ -65,16 +69,18 @@ Cleaning and wrangling the raw data sets are accomplished in `1_data_wrangling.q
 
 ## References
 
-Draxl, C., Hodge, B. M., Clifton, A., & McCaa, J. (2015). The Wind Integration National Dataset (WIND) Toolkit. *Applied Energy*, *151*, 355–366.
+Brun, J., Janée, G., Adams, A., and Curty, R. (2026). *EDS 213: Databases and Data Management*. <https://ucsb-library-research-data-services.github.io/bren-eds213/#instructors>
 
-Lieberman-Cribbin, W., Draxl, C., & Clifton, A. (2014). *Guide to using the WIND Toolkit validation code* (Technical Report No. NREL/TP-5000-62595). National Renewable Energy Laboratory.
+Draxl, C., Hodge, B. M., Clifton, A., & McCaa, J. (2015). The Wind Integration National Dataset (WIND) Toolkit. *Applied Energy*, *151*, 355–366.
 
 King, J., Clifton, A., & Hodge, B. M. (2014). *Validation of power output for the WIND Toolkit* (Technical Report No. NREL/TP-5D00-61714). National Renewable Energy Laboratory.
 
+Lieberman-Cribbin, W., Draxl, C., & Clifton, A. (2014). *Guide to using the WIND Toolkit validation code* (Technical Report No. NREL/TP-5000-62595). National Renewable Energy Laboratory.
+
 Sengupta, M., Xie, Y., Lopez, A., Habte, A., Maclaurin, G., & Shelby, J. (2018). The national solar radiation data base (NSRDB). *Renewable and Sustainable Energy Reviews*, *89*, 51–60.
 
-U.S. Energy Information Administration. (2025). *Form EIA-860 detailed data with previous form data (EIA-860A/860B)*. <https://www.eia.gov/electricity/data/eia860/>
-
-U.S. Census Bureau. (2019). *American Community Survey 5-year estimates*. <https://www.census.gov/programs-surveys/acs>
+U.S. Census Bureau. (2019). *American Community Survey 5-year Estimates*. <https://www.census.gov/programs-surveys/acs>
 
 U.S. Census Bureau. (2025). *TIGER/Line® shapefiles*. <https://www.census.gov/cgi-bin/geo/shapefiles/index.php>
+
+U.S. Energy Information Administration. (2025). *Form EIA-860 detailed data with previous form data (EIA-860A/860B)*. <https://www.eia.gov/electricity/data/eia860/>

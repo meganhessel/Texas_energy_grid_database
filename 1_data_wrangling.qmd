@@ -3,7 +3,7 @@ title: "data_wrangling"
 format: html
 ---
 
-This script (1) downloads the raw data, (2) cleans and wrangles the necessary data sets to make them usable, and (3) re-downloads the cleaned data sets into a processed data folder.
+This script (1) loads the raw data, (2) cleans and wrangles the necessary data sets to make them usable, and (3) re-downloads the cleaned data sets into a processed data folder.
 
 ```{r}
 library(tidyverse)
@@ -107,10 +107,7 @@ income_texas_sf <- dplyr::left_join(geom_texas, income_texas, by = c("geoid_data
 hispanic_texas_sf <- dplyr::left_join(geom_texas, hispanic_texas, by = c("geoid_data"= "geoid"))
 
 # Remove non spatial dfs 
-rm(list = c('income_texas', 'race_texas'))
-
-# Remove spatial dfs 
-#rm(list = c('income_texas_sf', 'race_texas_sf', 'poverty_texas_sf', 'age_sex_texas_sf'))
+#rm(list = c('income_texas', 'race_texas'))
 ```
 
 Creating an Income data frame
@@ -141,7 +138,7 @@ income_filter <- income_filter %>%
 
 ```
 
-Creating a Race dataf rame
+Creating a Race data frame
 
 ```{r}
 race_filter <- hispanic_texas_sf %>% 

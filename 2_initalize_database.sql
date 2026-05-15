@@ -1,4 +1,9 @@
 
+-- This SQL loads all the cleaned datasets from `1_data_wrangling.qmd` and makes them tables in the database. 
+
+-- Before you load these tables, you must to create a database. 
+-- I used duckdb. Therefore, I ran `duckdb name_of_database.db` into my terminal to create my database. 
+
 -- Load libraries 
 LOAD spatial;
 
@@ -23,7 +28,7 @@ CREATE TABLE plant_texas AS
     FROM read_parquet('/Users/meganhessel/Documents/MEDS/eds213_databases/final_database_proj/Texas_energy_grid_database/data/processed/plant_texas_sf_v2.parquet');
 
 
--- enviornmental factors 
+-- Enviornmental factors 
 CREATE TABLE sunshine_texas AS 
     SELECT * EXCLUDE (geom),
            ST_GeomFromText(geom) AS geom

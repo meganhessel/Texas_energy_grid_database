@@ -3,6 +3,10 @@ title: "socioEconomic_viz"
 format: html
 ---
 
+This script (1) connects to the database using SQL queries, (2) loads the queried data, and (3) creates data visualizations investigating if socioeconomic and demographic disparities influence how energy sources/generation is dispersed in Texas.
+
+Load libraries
+
 ```{r}
 # For database queries 
 library(tidyverse)
@@ -19,14 +23,12 @@ library(sf)
 First, need to connect to the database.
 
 ```{r}
-
 # Connection
 conn <- DBI::dbConnect(duckdb::duckdb(),
                        dbdir = "TX_energy_grid.db")
 
 # Tables 
 DBI::dbListTables(conn)
-
 ```
 
 ## **QUESTION 2:** ENVIR ALIGNMENT
@@ -35,12 +37,12 @@ DBI::dbListTables(conn)
 
 ------------------------------------------------------------------------
 
-### Q2.A: How does residential energy source distribution vary across income brackets? 
+### Q2.A: How does residential energy source distribution vary across income brackets?
 
-Query for (1) median income and total energy per geoid and (2) Find median income per geiod 
+Query for (1) median income and total energy per geoid and (2) Find median income per geiod
+
 ```{r}
-# SQL Query 
-# (1) median income and total energy per fuel type by geoid 
+# SQL Query: Median income and total energy per fuel type by geoid 
 income_energy_fuelType <- DBI::dbGetQuery(
   conn,
   "SELECT 
@@ -58,11 +60,10 @@ JOIN (
 ) i USING (geoid);"
 )
 
-
-income_energy_fuelType
 ```
 
-Create and plot Income classes Energ composition  
+Create income classes & Plot income classes vs energy sources
+
 ```{r}
 # Add income bin 
 income_energy_fuelType <- income_energy_fuelType %>% 
@@ -74,7 +75,7 @@ income_energy_fuelType <- income_energy_fuelType %>%
     median_avg_income > 150000 ~ "150K+" 
   ))
 
-# color palette 
+# Energ Source color palette 
 fuel_cat_pal <- c(
   'Coal' = '#BB8900',
   'Hydro' = '#2C549C',
@@ -97,25 +98,29 @@ income_energy_plot <- income_energy_fuelType %>%
   scale_y_continuous(labels = scales::percent) +
   scale_fill_manual(values = fuel_cat_pal) +
   coord_flip() +
-  labs(y = "Share of capacity", title = "Census Tracks Income and Energy Composition") +
+  labs(y = "Share of capacity", 
+       title = "Census Tracks Income and Energy Composition", 
+       x = "", 
+       fill = "Energy Source") +
   theme_light()
 
-income_energy_plot
 # Save plot 
-ggsave(filename = here::here('figs', 'income_energy_plot.pdf'), plot = income_energy_plot)
+# ggsave(filename = here::here('figs', 'income_energy_plot.pdf'), plot = income_energy_plot)
 
 ```
 
-
 ### Q2.B: How does energy generation composition vary across communities of different racial and ethnic demographics?
 
-Query for the dataframe about texas's racial composition 
+Query for the dataframe about texas's racial composition
+
 ```{r}
+# Retrieve the race dataframe 
 race_texas <- tbl(conn, "race_texas") %>% 
   collect()
 ```
 
-Create a new column of the dominate race in each census track and merge with energy data 
+Create a new column of the dominate race in each census track and merge with energy data
+
 ```{r}
 # New column of the dominate race in each census track  
 race_texas <- race_texas %>%
@@ -137,7 +142,10 @@ race_energy <- race_texas %>%
 
 ```
 
+Plot community racial composition v energy sources
+
 ```{r}
+# Plot 
 race_energy_plot <- race_energy %>% 
   #filter(!dominant_race %in% c("Other", "Asian")) %>%
   group_by(dominant_race, fuel_category) %>% 
@@ -151,8 +159,8 @@ race_energy_plot <- race_energy %>%
        title = "Census Tracks Income and Energy Composition") + 
   theme_light()
 
-# save plot
-ggsave(filename = here::here('figs', 'race_energy_plot.pdf'), plot = race_energy_plot)
+# Save plot
+# ggsave(filename = here::here('figs', 'race_energy_plot.pdf'), plot = race_energy_plot)
 
 ```
 
@@ -161,6 +169,4 @@ ggsave(filename = here::here('figs', 'race_energy_plot.pdf'), plot = race_energy
 ```{r}
 # CLOSE DATABASE CONNECTION  - MUST DO 
 DBI::dbDisconnect(conn, shutdown = TRUE)
-
 ```
-

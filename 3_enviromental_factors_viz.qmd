@@ -3,6 +3,10 @@ title: "enviromental_factors_viz"
 format: html
 ---
 
+This script (1) connects to the database using SQL queries, (2) loads the queried data, and (3) creates data visualizations investigating if Texas communities optimize their energy generation around local environmental resources.
+
+Load libraries
+
 ```{r}
 # For database queries 
 library(tidyverse)
@@ -19,14 +23,12 @@ library(sf)
 First, need to connect to the database.
 
 ```{r}
-
 # Connection
 conn <- DBI::dbConnect(duckdb::duckdb(),
                        dbdir = "TX_energy_grid.db")
 
 # Tables 
 DBI::dbListTables(conn)
-
 ```
 
 ## **QUESTION 1:** ENVIR ALIGNMENT
@@ -40,7 +42,7 @@ DBI::dbListTables(conn)
 Query for solar energy and sunshine patterns
 
 ```{r}
-# SQL Query 
+# SQL Query: Solar energy and sunshine patterns
 solar_energy_texas <- DBI::dbGetQuery(
   conn,
   "SELECT * FROM generator_texas 
@@ -51,9 +53,10 @@ solar_energy_texas <- DBI::dbGetQuery(
 
 ```
 
-Create a line plot for sunshine and solar energy
+Create a line plot for sunshine v solar energy (mw)
 
 ```{r}
+# Subset the queried data 
 solar_energy_subset <- solar_energy_texas %>% 
   select(nameplate_capacity_mw, ghi)
 
@@ -73,14 +76,14 @@ solar_line_plot <- ggplot(solar_energy_subset) +
        title = "Sunshine (GHI) & Solar Energy Generation ")
 
 # Save plot 
-ggsave(filename = here::here('figs', 'solar_texas_linePlot.pdf'), plot = solar_line_plot)
+# ggsave(filename = here::here('figs', 'solar_texas_linePlot.pdf'), plot = solar_line_plot)
 
 ```
 
-Query for Avg solar energy (mw) per county
+Query for avg solar energy (mw) per county
 
 ```{r}
-# SQL Query 
+# SQL Query: Avg solar energy (mw) mw per county 
 solar_energy_county <- DBI::dbGetQuery(
   conn,
   "SELECT countyfp, AVG(nameplate_capacity_mw) AS avg_mw FROM generator_texas 
@@ -101,7 +104,7 @@ sunshine_texas <- tbl(conn, "sunshine_texas") %>%
 Create map of county sunshine and solar energy mw
 
 ```{r}
-# Merge 
+# Merge tables 
 solar_sf <- sunshine_texas %>%  # suppose to have geometry 
   left_join(solar_energy_county, by = "countyfp")
 
@@ -122,8 +125,10 @@ solar_energy_tx_map <- ggplot() +
   scale_fill_distiller(palette = "YlOrRd", direction = 1, name = "Solar Irradiance (GHI)") + 
   theme_void()
 
+solar_energy_tx_map
+
 # Save plot 
-ggsave(filename = here::here('figs', 'solar_texas_map.pdf'), plot = solar_energy_tx_map)
+# ggsave(filename = here::here('figs', 'solar_texas_map.pdf'), plot = solar_energy_tx_map)
 
 ```
 
@@ -132,7 +137,7 @@ ggsave(filename = here::here('figs', 'solar_texas_map.pdf'), plot = solar_energy
 Query for wind energy and wind speed patterns
 
 ```{r}
-# SQL Query 
+# SQL Query: Wind energy and wind environmental patterns 
 wind_energy_texas <- DBI::dbGetQuery(
   conn,
   "SELECT * FROM generator_texas 
@@ -146,9 +151,11 @@ wind_energy_texas <- DBI::dbGetQuery(
 Create a line plot for sunshine and solar energy
 
 ```{r}
+# Subset wind df 
 wind_energy_subset <- wind_energy_texas %>% 
   select(c(wind_100m, wind_120m, nameplate_capacity_mw))
 
+# Plot (100m)
 wind100m_tx_lineplot <- ggplot(wind_energy_subset) + 
   geom_point(aes(y = nameplate_capacity_mw, 
                  x = wind_100m), 
@@ -163,7 +170,7 @@ wind100m_tx_lineplot <- ggplot(wind_energy_subset) +
        y = "Wind Energy (mw)", 
        title = "Wind Speeds & Wind Energy Generation ")
 
-
+# Plot (120m)
 wind120m_tx_lineplot <- ggplot(wind_energy_subset) + 
   geom_point(aes(y = nameplate_capacity_mw, 
                  x = wind_120m), 
@@ -179,16 +186,16 @@ wind120m_tx_lineplot <- ggplot(wind_energy_subset) +
        title = "Wind Speeds & Wind Energy Generation ")
 
 
-# Save plot 
-ggsave(filename = here::here('figs', 'wind100m_texas_lineplot.pdf'), plot = wind100m_tx_lineplot)
-ggsave(filename = here::here('figs', 'wind120m_texas_lineplot.pdf'), plot = wind120m_tx_lineplot)
+# Save plots 
+# ggsave(filename = here::here('figs', 'wind100m_texas_lineplot.pdf'), plot = wind100m_tx_lineplot)
+# ggsave(filename = here::here('figs', 'wind120m_texas_lineplot.pdf'), plot = wind120m_tx_lineplot)
 
 ```
 
 Query for Avg solar energy (mw) per county
 
 ```{r}
-# SQL Query 
+# SQL Query: Avg wind energy (mw) per county 
 wind_energy_county <- DBI::dbGetQuery(
   conn,
   "SELECT countyfp, AVG(nameplate_capacity_mw) AS avg_mw FROM generator_texas 
@@ -198,6 +205,7 @@ wind_energy_county <- DBI::dbGetQuery(
     GROUP BY countyfp;"
 )
 
+# Get wind dataframe and revive geoms (make spatial again)
 wind_texas <- tbl(conn, "wind_texas") %>% 
   collect() %>% 
   mutate(geom = st_as_sfc(geom)) %>% 
@@ -216,7 +224,7 @@ wind_sf <- wind_texas %>%  # suppose to have geometry
 wind_sf <- st_as_sf(wind_sf)
 wind_centroid <- st_centroid(wind_sf)
 
-# Plot 
+# Plot (120m)
 wind120m_energy_tx_map <- ggplot() + 
   geom_sf(data = wind_sf,
           mapping = aes(fill = wind_120m)) + 
@@ -230,7 +238,7 @@ wind120m_energy_tx_map <- ggplot() +
   theme_void()
 
 
-# Plot 
+# Plot (100m)
 wind100m_energy_tx_map <- ggplot() + 
   geom_sf(data = wind_sf,
           mapping = aes(fill = wind_100m)) + 
@@ -244,8 +252,8 @@ wind100m_energy_tx_map <- ggplot() +
   theme_void()
 
 # Save plot 
-ggsave(filename = here::here('figs', 'wind120m_texas_map.pdf'), plot = wind120m_energy_tx_map)
-ggsave(filename = here::here('figs', 'wind100m_texas_map.pdf'), plot = wind100m_energy_tx_map)
+# ggsave(filename = here::here('figs', 'wind120m_texas_map.pdf'), plot = wind120m_energy_tx_map)
+# ggsave(filename = here::here('figs', 'wind100m_texas_map.pdf'), plot = wind100m_energy_tx_map)
 
 ```
 
@@ -254,5 +262,4 @@ ggsave(filename = here::here('figs', 'wind100m_texas_map.pdf'), plot = wind100m_
 ```{r}
 # CLOSE DATABASE CONNECTION  - MUST DO 
 DBI::dbDisconnect(conn, shutdown = TRUE)
-
 ```

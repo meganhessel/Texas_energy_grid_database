@@ -3,6 +3,8 @@ title: "data_wrangling"
 format: html
 ---
 
+This script (1) downloads the raw data, (2) cleans and wrangles the necessary data sets to make them usable, and (3) re-downloads the cleaned data sets into a processed data folder.
+
 ```{r}
 library(tidyverse)
 library(dplyr)

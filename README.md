@@ -63,7 +63,7 @@ Cleaning and wrangling the raw data sets are accomplished in `1_data_wrangling.q
     └── infographic_v6.png
 ```
 
-## References 
+## References
 
 Draxl, C., Hodge, B. M., Clifton, A., & McCaa, J. (2015). The Wind Integration National Dataset (WIND) Toolkit. *Applied Energy*, *151*, 355–366.
 

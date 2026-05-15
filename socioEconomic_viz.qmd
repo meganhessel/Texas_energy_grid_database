@@ -1,0 +1,166 @@
+---
+title: "socioEconomic_viz"
+format: html
+---
+
+```{r}
+# For database queries 
+library(tidyverse)
+library(DBI)
+library(dbplyr)
+library(duckdb)
+
+# For plots 
+library(tidyverse)
+library(dplyr)
+library(sf)
+```
+
+First, need to connect to the database.
+
+```{r}
+
+# Connection
+conn <- DBI::dbConnect(duckdb::duckdb(),
+                       dbdir = "TX_energy_grid.db")
+
+# Tables 
+DBI::dbListTables(conn)
+
+```
+
+## **QUESTION 2:** ENVIR ALIGNMENT
+
+**How is energy generation distributed across socioeconomically disadvantaged communities in Texas?**
+
+------------------------------------------------------------------------
+
+### Q2.A: How does residential energy source distribution vary across income brackets? 
+
+Query for (1) median income and total energy per geoid and (2) Find median income per geiod 
+```{r}
+# SQL Query 
+# (1) median income and total energy per fuel type by geoid 
+income_energy_fuelType <- DBI::dbGetQuery(
+  conn,
+  "SELECT 
+    g.geoid,g.fuel_category, g.total_mw, i.median_avg_income
+FROM (
+    SELECT geoid, fuel_category, SUM(nameplate_capacity_mw) AS total_mw 
+    FROM generator_texas 
+    JOIN plant_texas USING (plant_code)
+    GROUP BY geoid, fuel_category
+) g
+JOIN (
+    SELECT geoid, MEDIAN(avg_income) AS median_avg_income 
+    FROM income_texas
+    GROUP BY geoid
+) i USING (geoid);"
+)
+
+
+income_energy_fuelType
+```
+
+Create and plot Income classes Energ composition  
+```{r}
+# Add income bin 
+income_energy_fuelType <- income_energy_fuelType %>% 
+  mutate(income_class = case_when(
+    median_avg_income < 25000 ~ "Under 25K", 
+    median_avg_income < 50000 ~ "25K -50K", 
+    median_avg_income < 100000 ~ "50K - 100K", 
+    median_avg_income < 150000 ~ "100K - 150K", 
+    median_avg_income > 150000 ~ "150K+" 
+  ))
+
+# color palette 
+fuel_cat_pal <- c(
+  'Coal' = '#BB8900',
+  'Hydro' = '#2C549C',
+ 'Natural gas' = '#B0B0B0', 
+  'Nuclear' = '#D04A39',
+  'Other' = '#484848',
+  'Other renewable' = '#02BA00',
+  'Solar' = '#FCDB48',
+  'Wind' = '#00A8EA'
+)
+
+# Plot 
+income_energy_plot <- income_energy_fuelType %>%
+  filter(!is.na(income_class)) %>%
+  group_by(income_class, fuel_category) %>%
+  summarise(TOTAL_mw = sum(total_mw, na.rm = TRUE), 
+            .groups = "drop") %>%
+  ggplot() +
+  geom_col(aes(x = income_class, y = TOTAL_mw, fill = fuel_category), position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_manual(values = fuel_cat_pal) +
+  coord_flip() +
+  labs(y = "Share of capacity", title = "Census Tracks Income and Energy Composition") +
+  theme_light()
+
+income_energy_plot
+# Save plot 
+ggsave(filename = here::here('figs', 'income_energy_plot.pdf'), plot = income_energy_plot)
+
+```
+
+
+### Q2.B: How does energy generation composition vary across communities of different racial and ethnic demographics?
+
+Query for the dataframe about texas's racial composition 
+```{r}
+race_texas <- tbl(conn, "race_texas") %>% 
+  collect()
+```
+
+Create a new column of the dominate race in each census track and merge with energy data 
+```{r}
+# New column of the dominate race in each census track  
+race_texas <- race_texas %>%
+  mutate(dominant_race = case_when(
+    white_total    == pmax(white_total, black_aa_total, hispanic_total, asian_total, other_total) ~ "White",
+    black_aa_total == pmax(white_total, black_aa_total, hispanic_total, asian_total, other_total) ~ "Black",
+    hispanic_total    == pmax(white_total, black_aa_total, hispanic_total, asian_total, other_total) ~ "Hispanic",
+    asian_total    == pmax(white_total, black_aa_total, hispanic_total, asian_total, other_total) ~ "Asian",
+    TRUE ~ "Other"
+  ))
+
+# Select just the energy data from income dataframe above 
+fuel_catagories_mw <- income_energy_fuelType %>% 
+  select(geoid, fuel_category, total_mw)
+
+# Join fuels and race data 
+race_energy <- race_texas %>% 
+  left_join(fuel_catagories_mw, by = "geoid") 
+
+```
+
+```{r}
+race_energy_plot <- race_energy %>% 
+  #filter(!dominant_race %in% c("Other", "Asian")) %>%
+  group_by(dominant_race, fuel_category) %>% 
+  summarise(TOTAL_mw = sum(total_mw, na.rm = TRUE), 
+            .groups = "drop") %>% 
+  ggplot() + 
+  geom_col(aes(y = dominant_race, x = TOTAL_mw, fill = fuel_category), position = "fill") +
+  scale_x_continuous(labels = scales::percent) +
+  scale_fill_manual(values = fuel_cat_pal) +
+  labs(y = "Share of capacity", 
+       title = "Census Tracks Income and Energy Composition") + 
+  theme_light()
+
+# save plot
+ggsave(filename = here::here('figs', 'race_energy_plot.pdf'), plot = race_energy_plot)
+
+```
+
+# Close Database
+
+```{r}
+# CLOSE DATABASE CONNECTION  - MUST DO 
+DBI::dbDisconnect(conn, shutdown = TRUE)
+
+```
+

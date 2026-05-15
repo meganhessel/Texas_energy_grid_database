@@ -67,6 +67,10 @@ Cleaning and wrangling the raw data sets are accomplished in `1_data_wrangling.q
     └── infographic_v6.png
 ```
 
+## Final Infographic 
+
+![The infographic created through this repository's database investigating Texas energy grid and the possible influencing environmental and socio-economic factors.](infographic/infographic_v7.png)
+
 ## References
 
 Brun, J., Janée, G., Adams, A., and Curty, R. (2026). *EDS 213: Databases and Data Management*. <https://ucsb-library-research-data-services.github.io/bren-eds213/#instructors>
